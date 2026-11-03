@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stock Disponible</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+body{margin:0}
+
+/* Layout: one column "warehouse ledger" — header strip, status summary, searchable product list; owner gets an update panel on top. */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --ink:#14212e; --muted:#5d6b7a; --line:#dde3e9;
+  --accent:#1d4e89; --accent-ink:#ffffff; --accent-soft:#e3ecf7;
+  --ok:#17804a; --ok-soft:#e1f3e8; --warn:#a86200; --warn-soft:#fbefd9; --bad:#b4232c; --bad-soft:#f9e1e2;
+  --f-display:"Archivo",system-ui,sans-serif; --f-body:"Archivo",system-ui,sans-serif; --f-num:"JetBrains Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f161d; --surface:#17212b; --ink:#e6edf3; --muted:#93a2b1; --line:#283543;
+  --accent:#6aa5ea; --accent-ink:#0b1622; --accent-soft:#1b2d42;
+  --ok:#4cc583; --ok-soft:#163626; --warn:#f0a842; --warn-soft:#3a2b12; --bad:#f2707a; --bad-soft:#3d1a1e; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f161d; --surface:#17212b; --ink:#e6edf3; --muted:#93a2b1; --line:#283543;
+  --accent:#6aa5ea; --accent-ink:#0b1622; --accent-soft:#1b2d42;
+  --ok:#4cc583; --ok-soft:#163626; --warn:#f0a842; --warn-soft:#3a2b12; --bad:#f2707a; --bad-soft:#3d1a1e; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45}
+.wrap{max-width:980px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px;display:flex;flex-direction:column;gap:20px}
+h1{font-family:var(--f-display);font-weight:800;font-size:clamp(26px,5vw,36px);letter-spacing:-.02em;margin:0;text-wrap:balance}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.head .meta{color:var(--muted);font-size:13px}
+.sample{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:10px 14px;font-size:14px;font-weight:500}
+.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.sum{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;cursor:pointer;text-align:left;font:inherit;color:inherit}
+.sum[aria-pressed="true"]{outline:2px solid var(--accent);outline-offset:-1px}
+.sum b{font-family:var(--f-num);font-size:22px;font-variant-numeric:tabular-nums}
+.sum span{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+.dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}.dot.bad{background:var(--bad)}
+.tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.search{flex:1 1 240px;min-width:0;padding:11px 14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit}
+.search:focus,select:focus,input:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+select{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;max-width:100%}
+.list{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 120px 150px;gap:12px;align-items:center;padding:12px 16px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row.hdr{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--bg)}
+.name{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.sub{font-size:12.5px;color:var(--muted);font-weight:400;display:flex;gap:10px;flex-wrap:wrap}
+.sub code{font-family:var(--f-num);font-size:12px}
+.qty{font-family:var(--f-num);font-weight:700;font-size:18px;text-align:right;font-variant-numeric:tabular-nums}
+.qty small{font-family:var(--f-body);font-weight:400;font-size:12px;color:var(--muted);margin-left:4px}
+.pill{justify-self:end;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;font-size:13px;font-weight:600;white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}.pill.warn{background:var(--warn-soft);color:var(--warn)}.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.qty input{width:90px;text-align:right;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.qty input.changed{border-color:var(--accent);background:var(--accent-soft)}
+.empty{padding:28px 16px;text-align:center;color:var(--muted)}
+.foot{color:var(--muted);font-size:13px}
+/* owner panel */
+.admin{background:var(--surface);border:1.5px dashed var(--accent);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.admin h2{margin:0;font-size:17px;font-family:var(--f-display);font-weight:700}
+.admin p{margin:0;color:var(--muted);font-size:14px;max-width:65ch}
+.btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{font:inherit;font-weight:600;padding:9px 14px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn:disabled{opacity:.55;cursor:default}
+.drop{border:1.5px dashed var(--line);border-radius:10px;padding:18px;text-align:center;color:var(--muted);cursor:pointer}
+.drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+.settings{display:flex;flex-wrap:wrap;gap:14px}
+.settings label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);min-width:0}
+.settings input{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);min-width:0}
+.preview{background:var(--accent-soft);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.preview ul{margin:0;padding-left:18px}
+.msg{font-size:14px;font-weight:500}
+.msg.err{color:var(--bad)}.msg.okc{color:var(--ok)}
+.savebar{position:sticky;bottom:0;padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
+.savebar .in{background:var(--ink);color:var(--bg);border-radius:10px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;box-shadow:0 6px 20px rgba(0,0,0,.2)}
+.savebar .btn{background:transparent;color:var(--bg);border-color:color-mix(in srgb,var(--bg) 40%,transparent)}
+.savebar .btn.primary{background:var(--bg);color:var(--ink)}
+.linkish{background:none;border:0;padding:0;color:var(--accent);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline}
+@media (max-width:640px){
+  .row{grid-template-columns:minmax(0,1fr) auto;row-gap:6px}
+  .row.hdr{display:none}
+  .row .qty{grid-column:2;grid-row:1}
+  .row .pill{grid-column:1/-1;justify-self:start}
+  .summary{gap:6px}.sum{padding:10px}.sum b{font-size:19px}
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+
+.err-box{background:var(--bad-soft);color:var(--bad);border-radius:8px;padding:12px 14px;font-weight:500}
+</style>
+</head>
+<body>
+<div id="app" class="wrap"><p class="foot">Cargando stock…</p></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ===== Ajustes: puedes cambiar estos dos valores =====
+const COMPANY_NAME = "";        // nombre que verán tus clientes, ej: "Relan Chile"
+const LOW_STOCK_THRESHOLD = 5;   // "Pocas unidades" = este número o menos
+const STOCK_FILE = "stock.xlsx"; // el Excel que actualizas en GitHub
+// =====================================================
+(function(){
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const fmt = n => Number(n).toLocaleString("es-CL");
+  const norm = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().trim();
+  const COLS = {
+    sku: ["sku","codigo","cod","cod.","codigo producto","referencia","ref"],
+    name: ["producto","nombre","descripcion","nombre producto","item","articulo"],
+    category: ["categoria","familia","linea","tipo"],
+    stock: ["stock","cantidad","unidades","disponible","qty","inventario","stock disponible"]
+  };
+  const LABEL = { ok:"Disponible", warn:"Pocas unidades", bad:"Sin stock" };
+  const statusOf = n => { n = Number(n)||0; return n <= 0 ? "bad" : n <= LOW_STOCK_THRESHOLD ? "warn" : "ok"; };
+  const ui = { q:"", cat:"", status:"" };
+  let products = [], updatedAt = null;
+
+  function parseRows(rows){
+    const hi = rows.findIndex(r => r.some(c => COLS.stock.includes(norm(c))));
+    if (hi < 0) throw new Error("El Excel no tiene una columna llamada “Stock”.");
+    const hdr = rows[hi].map(norm), idx = {};
+    for (const k in COLS) idx[k] = hdr.findIndex(h => COLS[k].includes(h));
+    const out = [];
+    for (const r of rows.slice(hi+1)) {
+      if (!r || r.every(c => String(c ?? "").trim()==="")) continue;
+      const name = String((idx.name>=0 ? r[idx.name] : "") || (idx.sku>=0 ? r[idx.sku] : "")).trim();
+      const raw = r[idx.stock];
+      const n = typeof raw === "number" ? raw : Number(String(raw ?? "").replace(/\./g,"").replace(",",".").trim());
+      if (!name || String(raw ?? "").trim()==="" || !isFinite(n)) continue;
+      out.push({ sku: idx.sku>=0 ? String(r[idx.sku] ?? "").trim() : "", name,
+        category: idx.category>=0 ? String(r[idx.category] ?? "").trim() : "", stock: Math.max(0, Math.round(n)) });
+    }
+    return out;
+  }
+
+  function render(){
+    const focusId = document.activeElement && document.activeElement.id;
+    const counts = {ok:0,warn:0,bad:0}; products.forEach(x => counts[statusOf(x.stock)]++);
+    const cats = [...new Set(products.map(x => x.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"es"));
+    const q = ui.q.trim().toLowerCase();
+    const shown = products.filter(x =>
+      (!q || (x.name+" "+x.sku+" "+x.category).toLowerCase().includes(q)) &&
+      (!ui.cat || x.category === ui.cat) && (!ui.status || statusOf(x.stock) === ui.status));
+    const upd = updatedAt ? updatedAt.toLocaleString("es-CL",{dateStyle:"long",timeStyle:"short"}) : null;
+    $("#app").innerHTML = `
+      <header class="head"><div><div class="eyebrow">${esc(COMPANY_NAME || "Inventario")}</div><h1>Stock disponible</h1></div>
+        <div class="meta">${upd ? "Actualizado el " + esc(upd) : ""}</div></header>
+      <div class="summary">${["ok","warn","bad"].map(k=>`<button class="sum" data-status="${k}" aria-pressed="${ui.status===k}"><b>${counts[k]}</b><span><i class="dot ${k}"></i>${LABEL[k]}</span></button>`).join("")}</div>
+      <div class="tools">
+        <input class="search" id="q" type="search" placeholder="Buscar por producto, SKU o categoría" value="${esc(ui.q)}" aria-label="Buscar">
+        ${cats.length ? `<select id="cat" aria-label="Categoría"><option value="">Todas las categorías</option>${cats.map(c=>`<option ${c===ui.cat?"selected":""} value="${esc(c)}">${esc(c)}</option>`).join("")}</select>` : ""}
+      </div>
+      <div class="list" role="table">
+        <div class="row hdr" role="row"><div>Producto</div><div style="text-align:right">Unidades</div><div style="text-align:right">Estado</div></div>
+        ${shown.length ? shown.map(x => { const st = statusOf(x.stock); return `<div class="row" role="row">
+          <div class="name">${esc(x.name)}<div class="sub">${x.sku?`<code>${esc(x.sku)}</code>`:""}${x.category?`<span>${esc(x.category)}</span>`:""}</div></div>
+          <div class="qty">${fmt(x.stock)}<small>u.</small></div>
+          <div class="pill ${st}"><i class="dot ${st}"></i>${LABEL[st]}</div></div>`; }).join("")
+          : `<div class="empty">${products.length ? "Ningún producto coincide con tu búsqueda." : "Todavía no hay productos publicados."}</div>`}
+      </div>
+      <p class="foot">${shown.length} de ${products.length} productos · “Pocas unidades” = ${LOW_STOCK_THRESHOLD} o menos.</p>`;
+    if (focusId === "q") { const el = $("#q"); el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  }
+
+  document.addEventListener("input", e => { if (e.target.id === "q") { ui.q = e.target.value; render(); } });
+  document.addEventListener("change", e => { if (e.target.id === "cat") { ui.cat = e.target.value; render(); } });
+  document.addEventListener("click", e => { const b = e.target.closest("button[data-status]"); if (b) { ui.status = ui.status === b.dataset.status ? "" : b.dataset.status; render(); } });
+
+  (async () => {
+    try {
+      if (!window.XLSX) throw new Error("No se pudo cargar el lector de Excel. Recarga la página.");
+      const res = await fetch(STOCK_FILE + "?v=" + Date.now(), { cache: "no-store" });
+      if (!res.ok) throw new Error("No encontré el archivo " + STOCK_FILE + " en el repositorio.");
+      const lm = res.headers.get("last-modified"); if (lm) updatedAt = new Date(lm);
+      const wb = XLSX.read(await res.arrayBuffer(), { type:"array" });
+      products = parseRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, defval:"", raw:true }));
+      render();
+    } catch (e) {
+      $("#app").innerHTML = `<header class="head"><div><h1>Stock disponible</h1></div></header><div class="err-box">${esc(e.message)}</div>`;
+    }
+  })();
+})();
+</script>
+</body>
+</html>
